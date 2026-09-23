@@ -1,0 +1,52 @@
+{
+  "name": "metrics-that-never-drift",
+  "version": "1.0.0",
+  "private": true,
+  "description": "One canonical 'collected revenue' number across multiple payment sources, exposed through two views that agree by construction, with CI tripwires that catch any second implementation.",
+  "type": "module",
+  "packageManager": "pnpm@10.20.0",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "start": "tsx src/server.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:unit": "vitest run tests/unit",
+    "test:integration": "vitest run tests/integration",
+    "test:property": "vitest run tests/property",
+    "test:guards": "vitest run tests/guards",
+    "db:ping": "tsx scripts/db-ping.ts",
+    "db:migrate": "tsx scripts/db-migrate.ts",
+    "db:seed": "tsx scripts/db-seed.ts",
+    "seed:stripe": "tsx scripts/seed-stripe.ts",
+    "make:csv": "tsx scripts/make-legacy-csv.ts",
+    "ingest": "tsx scripts/ingest.ts",
+    "demo": "bash scripts/demo.sh"
+  },
+  "dependencies": {
+    "express": "^4.21.2",
+    "luxon": "^3.5.0",
+    "postgres": "^3.4.5",
+    "stripe": "^17.5.0",
+    "swagger-ui-express": "^5.0.1",
+    "tsx": "^4.19.2",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "@types/express": "^4.17.21",
+    "@types/luxon": "^3.4.2",
+    "@types/node": "^22.10.5",
+    "@types/swagger-ui-express": "^4.1.8",
+    "fast-check": "^3.23.2",
+    "typescript": "^5.7.3",
+    "vitest": "^2.1.8"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "esbuild"
+    ]
+  }
+}

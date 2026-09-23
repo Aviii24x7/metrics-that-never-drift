@@ -1,0 +1,17 @@
+node_modules/
+dist/
+coverage/
+*.log
+
+# Secrets — never commit real credentials
+.env
+.env.local
+
+# Prep/explainer artifacts — kept locally, not part of the code deliverable
+Problem-2-Explained.pptx
+Problem-2-Explained.pdf
+
+# OS / editor cruft
+.DS_Store
+.idea/
+.vscode/
