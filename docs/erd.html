@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>ERD — Metrics That Never Drift</title>
+<style>
+  :root{
+    --bg:#f6f7f9; --panel:#ffffff; --ink:#1a1f2b; --muted:#5b6472; --line:#e3e7ee;
+    --accent:#2f5be0; --accent-soft:#eaf0ff; --code-bg:#f2f4f8;
+    --ok:#0f7b4f; --ok-soft:#e6f5ee; --warn:#9a5b00; --warn-soft:#fdf1dc;
+    --danger:#a11; --mono:'SFMono-Regular',ui-monospace,Menlo,Consolas,monospace;
+    --sans:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);line-height:1.6;font-size:16px}
+  a{color:var(--accent);text-decoration:none}
+  a:hover{text-decoration:underline}
+  .topbar{position:sticky;top:0;z-index:50;background:rgba(255,255,255,.92);backdrop-filter:blur(8px);border-bottom:1px solid var(--line)}
+  .topbar .inner{max-width:1080px;margin:0 auto;padding:12px 24px;display:flex;align-items:center;gap:18px;flex-wrap:wrap}
+  .brand{font-weight:700;letter-spacing:-.01em}
+  .brand small{display:block;font-weight:500;color:var(--muted);font-size:12px}
+  .nav{margin-left:auto;display:flex;gap:6px}
+  .nav a{padding:6px 12px;border-radius:8px;color:var(--muted);font-weight:600;font-size:14px}
+  .nav a.active{background:var(--accent-soft);color:var(--accent)}
+  .nav a:hover{background:var(--code-bg);text-decoration:none}
+  main{max-width:1080px;margin:0 auto;padding:36px 24px 96px}
+  h1{font-size:30px;letter-spacing:-.02em;margin:.2em 0 .1em}
+  .lede{color:var(--muted);font-size:17px;max-width:70ch;margin:0 0 24px}
+  h2{font-size:22px;letter-spacing:-.01em;margin:44px 0 12px;padding-bottom:8px;border-bottom:2px solid var(--line)}
+  h3{font-size:17px;margin:28px 0 8px}
+  section{scroll-margin-top:80px}
+  p{margin:10px 0}
+  code{font-family:var(--mono);font-size:.88em;background:var(--code-bg);padding:2px 6px;border-radius:5px}
+  pre{background:var(--code-bg);border:1px solid var(--line);border-radius:10px;padding:16px;overflow-x:auto;font-family:var(--mono);font-size:13.5px;line-height:1.55}
+  pre code{background:none;padding:0}
+  table{width:100%;border-collapse:collapse;margin:14px 0;font-size:14.5px;background:var(--panel);border:1px solid var(--line);border-radius:10px;overflow:hidden}
+  th,td{text-align:left;padding:10px 14px;border-bottom:1px solid var(--line);vertical-align:top}
+  th{background:#fafbfc;font-size:12.5px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted)}
+  tr:last-child td{border-bottom:none}
+  td code{font-size:.85em}
+  .diagram{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:22px;margin:18px 0;overflow-x:auto;text-align:center}
+  .callout{border-radius:10px;padding:14px 16px;margin:16px 0;border:1px solid;font-size:14.5px}
+  .callout .tag{font-weight:700;font-size:12px;text-transform:uppercase;letter-spacing:.05em;display:block;margin-bottom:4px}
+  .callout.key{background:var(--accent-soft);border-color:#cddcff}
+  .callout.key .tag{color:var(--accent)}
+  .callout.ok{background:var(--ok-soft);border-color:#bfe6d2}
+  .callout.ok .tag{color:var(--ok)}
+  .callout.warn{background:var(--warn-soft);border-color:#f0dcae}
+  .callout.warn .tag{color:var(--warn)}
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px;margin:16px 0}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px}
+  .card h4{margin:0 0 6px;font-size:15px}
+  .card p{margin:0;color:var(--muted);font-size:14px}
+  .pill{display:inline-block;font-size:11px;font-weight:700;padding:2px 8px;border-radius:999px;background:var(--accent-soft);color:var(--accent);vertical-align:middle}
+  .pk{color:#0f7b4f;font-weight:700}
+  .uk{color:#9a5b00;font-weight:700}
+  footer{max-width:1080px;margin:0 auto;padding:24px;color:var(--muted);font-size:13px;border-top:1px solid var(--line)}
+  @media (prefers-color-scheme: dark){
+    :root{--bg:#12161d;--panel:#1a1f29;--ink:#e6e9ef;--muted:#9aa4b2;--line:#2a3140;--accent:#7aa2ff;--accent-soft:#1e2a44;--code-bg:#0f131a;--ok:#57c99a;--ok-soft:#12261e;--warn:#e0b877;--warn-soft:#2a2113}
+    .topbar{background:rgba(20,24,31,.9)}
+    th{background:#151a22}
+    .card,.diagram{background:#161b23}
+    .diagram{filter:none}
+  }
+</style>
+</head>
+<body>
+<div class="topbar"><div class="inner">
+  <div class="brand">Metrics That Never Drift <small>Problem 2 · Backend Assignment</small></div>
+  <nav class="nav">
+    <a href="lld.html">LLD</a>
+    <a href="erd.html" class="active">ERD</a>
+    <a href="flow.html">Flow</a>
+  </nav>
+</div></div>
+
+<main>
+  <h1>Entity Relationship &amp; Data Model</h1>
+  <p class="lede">Three tables carry the whole system. The design's most important property is a
+  <strong>deliberate absence</strong>: there is no foreign key from <code>transactions</code> to <code>status_map</code>,
+  so an unmapped status can still be ingested — and then be counted, loudly, as <em>unclassified</em> rather than
+  silently dropped or silently treated as revenue.</p>
+
+  <div class="callout key">
+    <span class="tag">Load-bearing rule</span>
+    Ingestion stores <code>raw_status</code> <em>verbatim</em> and never interprets it. Meaning is assigned only at
+    <strong>read time</strong>, by joining <code>transactions</code> → <code>status_map</code>. That single seam is
+    what lets a new source or a new status value arrive without touching the metric.
+  </div>
+
+  <section id="diagram">
+    <h2>The diagram</h2>
+    <div class="diagram">
+<pre class="mermaid">
+erDiagram
+    STATUS_MAP |o..o{ TRANSACTIONS : "read-time join, no FK"
+    TRANSACTIONS {
+        bigserial   id            PK "surrogate key"
+        text        source        UK "part of unique(source, external_id)"
+        text        external_id   UK "provider id, dedupe key"
+        text        raw_status    "verbatim from source, never interpreted"
+        bigint      amount_minor  "integer minor units, no floats"
+        char3       currency      "ISO-4217, totals grouped by this"
+        timestamptz occurred_at   "event time, tz-aware"
+        jsonb       raw           "full original payload, re-map without re-fetch"
+        timestamptz ingested_at   "default now()"
+    }
+    STATUS_MAP {
+        text source     PK "composite pk"
+        text raw_status PK "composite pk"
+        text canonical  "CHECK in 5 canonical values"
+    }
+    INGEST_QUARANTINE {
+        bigserial   id         PK
+        text        source
+        jsonb       payload    "the row that failed validation"
+        text        error      "why it failed"
+        timestamptz created_at "default now()"
+    }
+</pre>
+    </div>
+    <p><span class="pk">PK</span> primary key · <span class="uk">UK</span> unique key · dotted line = non-identifying,
+    <strong>no enforced foreign key</strong>. The join <code>(transactions.source, transactions.raw_status) =
+    (status_map.source, status_map.raw_status)</code> is resolved inside the <code>collected_revenue()</code> function,
+    not by a database constraint.</p>
+  </section>
+
+  <section id="tables">
+    <h2>Tables, column by column</h2>
+
+    <h3><code>transactions</code> — the normalized write model</h3>
+    <p>One row per source event. Uniform shape across Stripe, Razorpay and the legacy CSV. This table records
+    <em>what the source said</em>, never <em>what it means</em>.</p>
+    <table>
+      <thead><tr><th>Column</th><th>Type</th><th>Constraints</th><th>Why it is this way</th></tr></thead>
+      <tbody>
+        <tr><td><code>id</code></td><td><code>bigserial</code></td><td><span class="pk">PK</span></td><td>Surrogate key. Business identity is <code>(source, external_id)</code>.</td></tr>
+        <tr><td><code>source</code></td><td><code>text</code></td><td>not null · <span class="uk">UK</span></td><td><code>'stripe'</code>, <code>'razorpay'</code>, <code>'legacy_erp'</code>. Half of the dedupe key and half of the map join key.</td></tr>
+        <tr><td><code>external_id</code></td><td><code>text</code></td><td>not null · <span class="uk">UK</span></td><td>The provider's own id (charge id, payment id, invoice no). Makes re-sync idempotent.</td></tr>
+        <tr><td><code>raw_status</code></td><td><code>text</code></td><td>not null</td><td>Stored <strong>verbatim</strong>: <code>succeeded</code>, <code>captured</code>, <code>PAID</code>… Never interpreted at write time.</td></tr>
+        <tr><td><code>amount_minor</code></td><td><code>bigint</code></td><td>not null</td><td>Integer minor units (cents/paise). Exact — floating-point sums of buckets would not equal the total.</td></tr>
+        <tr><td><code>currency</code></td><td><code>char(3)</code></td><td>not null</td><td>ISO-4217. Totals are grouped by currency; there is no FX conversion.</td></tr>
+        <tr><td><code>occurred_at</code></td><td><code>timestamptz</code></td><td>not null</td><td>When the money event happened. <code>timestamptz</code> so bucketing can apply an explicit IANA timezone.</td></tr>
+        <tr><td><code>raw</code></td><td><code>jsonb</code></td><td>not null</td><td>The full original payload. A mapping mistake can be corrected without re-fetching from the provider.</td></tr>
+        <tr><td><code>ingested_at</code></td><td><code>timestamptz</code></td><td>default <code>now()</code></td><td>Audit only. Never used in the metric.</td></tr>
+      </tbody>
+    </table>
+    <div class="callout ok"><span class="tag">Idempotency</span>
+      <code>unique (source, external_id)</code> powers <code>insert … on conflict (source, external_id) do update</code>.
+      Running a sync twice leaves the row count unchanged and refreshes a corrected record in place — the E2-S4 test asserts exactly this.</div>
+
+    <h3><code>status_map</code> — external vocabulary → canonical meaning</h3>
+    <p>Pure data. Adding a fourth source is rows here, not code. This table answers <em>“what does this word mean?”</em>
+    — it does <strong>not</strong> answer <em>“which meanings count as revenue?”</em> (that is <code>COLLECTED_STATUSES</code>, kept separate on purpose).</p>
+    <table>
+      <thead><tr><th>Column</th><th>Type</th><th>Constraints</th><th>Notes</th></tr></thead>
+      <tbody>
+        <tr><td><code>source</code></td><td><code>text</code></td><td><span class="pk">PK</span> (composite)</td><td>Same value space as <code>transactions.source</code>.</td></tr>
+        <tr><td><code>raw_status</code></td><td><code>text</code></td><td><span class="pk">PK</span> (composite)</td><td>The provider's word, exactly as it lands in <code>transactions.raw_status</code>.</td></tr>
+        <tr><td><code>canonical</code></td><td><code>text</code></td><td><code>check (canonical in (…))</code></td><td>One of the five canonical statuses below.</td></tr>
+      </tbody>
+    </table>
+
+    <h3><code>ingest_quarantine</code> — per-record failure isolation</h3>
+    <p>A record that fails Zod validation lands here with its payload and error, and the batch continues. One malformed
+    row never costs a whole ingest run.</p>
+    <table>
+      <thead><tr><th>Column</th><th>Type</th><th>Constraints</th><th>Notes</th></tr></thead>
+      <tbody>
+        <tr><td><code>id</code></td><td><code>bigserial</code></td><td><span class="pk">PK</span></td><td></td></tr>
+        <tr><td><code>source</code></td><td><code>text</code></td><td>not null</td><td>Which adapter produced the bad row.</td></tr>
+        <tr><td><code>payload</code></td><td><code>jsonb</code></td><td>not null</td><td>The offending record, verbatim, for inspection.</td></tr>
+        <tr><td><code>error</code></td><td><code>text</code></td><td>not null</td><td>The validation error message.</td></tr>
+        <tr><td><code>created_at</code></td><td><code>timestamptz</code></td><td>default <code>now()</code></td><td></td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section id="canonical">
+    <h2>The canonical vocabulary</h2>
+    <p>Five canonical statuses, enforced by a <code>CHECK</code> on <code>status_map.canonical</code>. Only one —
+    <code>collected</code> — is in the allow-list that counts as revenue.</p>
+    <div class="grid">
+      <div class="card"><h4>collected <span class="pill">in allow-list</span></h4><p>Money is actually collected. The single value in <code>COLLECTED_STATUSES</code>.</p></div>
+      <div class="card"><h4>pending</h4><p>Authorized / awaiting capture / draft. Not revenue.</p></div>
+      <div class="card"><h4>failed</h4><p>Declined, errored, written off.</p></div>
+      <div class="card"><h4>refunded</h4><p>Money returned. Leaves the collected set by exclusion.</p></div>
+      <div class="card"><h4>voided</h4><p>Cancelled before capture.</p></div>
+    </div>
+
+    <h3>Seed mapping (12 rows, three vocabularies)</h3>
+    <table>
+      <thead><tr><th>Source</th><th>Raw status</th><th>Canonical</th></tr></thead>
+      <tbody>
+        <tr><td><code>stripe</code></td><td><code>succeeded</code></td><td><code>collected</code></td></tr>
+        <tr><td><code>stripe</code></td><td><code>pending</code></td><td><code>pending</code></td></tr>
+        <tr><td><code>stripe</code></td><td><code>failed</code></td><td><code>failed</code></td></tr>
+        <tr><td><code>stripe</code></td><td><code>canceled</code></td><td><code>voided</code></td></tr>
+        <tr><td><code>razorpay</code></td><td><code>captured</code></td><td><code>collected</code></td></tr>
+        <tr><td><code>razorpay</code></td><td><code>authorized</code></td><td><code>pending</code></td></tr>
+        <tr><td><code>razorpay</code></td><td><code>failed</code></td><td><code>failed</code></td></tr>
+        <tr><td><code>razorpay</code></td><td><code>refunded</code></td><td><code>refunded</code></td></tr>
+        <tr><td><code>legacy_erp</code></td><td><code>PAID</code></td><td><code>collected</code></td></tr>
+        <tr><td><code>legacy_erp</code></td><td><code>DRAFT</code></td><td><code>pending</code></td></tr>
+        <tr><td><code>legacy_erp</code></td><td><code>VOID</code></td><td><code>voided</code></td></tr>
+        <tr><td><code>legacy_erp</code></td><td><code>WRITTEN_OFF</code></td><td><code>failed</code></td></tr>
+      </tbody>
+    </table>
+    <p>Three vocabularies, one <code>canonical</code> column. The uppercase legacy words demonstrate that a brand-new
+    source with an unseen vocabulary lands safely and is classified by data alone.</p>
+  </section>
+
+  <section id="why-no-fk">
+    <h2>Why no foreign key (the point of the whole design)</h2>
+    <div class="callout warn"><span class="tag">Deliberate omission</span>
+      If <code>transactions.raw_status</code> had a FK into <code>status_map</code>, an unmapped status from a new
+      source would cause the <strong>insert to fail</strong> — pushing the failure to ingest time and, under pressure,
+      tempting a “just skip it” patch that <em>silently drops revenue</em>.</div>
+    <p>Instead, unmapped rows insert freely and are surfaced two ways at read time:</p>
+    <ul>
+      <li>The <code>collected_revenue()</code> function uses an <strong>inner join</strong> to <code>status_map</code>,
+      so an unmapped status structurally <em>cannot</em> be counted — this is the allow-list expressed as data topology.</li>
+      <li>A separate <code>unclassified</code> query (a left join with a null check) counts and lists every
+      <code>(source, raw_status)</code> with no mapping, and both endpoints return it. Fail closed, report loudly.</li>
+    </ul>
+    <p>This is also what the <strong>E5-S2 mapping-coverage tripwire</strong> guards: a CI test asserts
+    <code>select (source, raw_status) from transactions except select (source, raw_status) from status_map</code>
+    returns zero rows, so a new vocabulary breaks the build instead of quietly under-reporting.</p>
+  </section>
+
+  <section id="indexes">
+    <h2>Indexes &amp; migrations</h2>
+    <table>
+      <thead><tr><th>Object</th><th>Purpose</th></tr></thead>
+      <tbody>
+        <tr><td><code>index on transactions (occurred_at)</code></td><td>Range scans for <code>[from, to)</code>.</td></tr>
+        <tr><td><code>index on transactions (source, raw_status)</code></td><td>The status-map join and the unclassified <code>except</code> query.</td></tr>
+        <tr><td><code>unique (source, external_id)</code></td><td>Idempotent upsert conflict target.</td></tr>
+      </tbody>
+    </table>
+    <p>Schema lives as numbered SQL migrations in the repo (<code>001</code> tables + indexes, <code>002</code> the
+    <code>collected_revenue()</code> function, seed of the 12 mappings). Keeping the function in its own migration means the
+    diff on that one file is the clearest possible evidence of any change to the definition. Full DDL is in the
+    <a href="lld.html#schema">LLD → Schema</a>; the read path is in the <a href="flow.html#metric">Flow → Metric read</a>.</p>
+  </section>
+</main>
+
+<footer>Problem 2 — “one metrics number that never drifts.” Data store: Neon Postgres (standard Postgres, Supabase-compatible via <code>DATABASE_URL</code>). See also <a href="lld.html">LLD</a> · <a href="flow.html">Flow</a>.</footer>
+
+<script type="module">
+  import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
+  const dark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+  mermaid.initialize({ startOnLoad: true, theme: dark ? 'dark' : 'neutral', securityLevel: 'loose', er: { useMaxWidth: true } });
+</script>
+</body>
+</html>

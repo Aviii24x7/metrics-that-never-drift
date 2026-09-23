@@ -1,0 +1,605 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>LLD — Metrics That Never Drift</title>
+<style>
+  :root{
+    --bg:#f6f7f9; --panel:#ffffff; --ink:#1a1f2b; --muted:#5b6472; --line:#e3e7ee;
+    --accent:#2f5be0; --accent-soft:#eaf0ff; --code-bg:#f2f4f8;
+    --ok:#0f7b4f; --ok-soft:#e6f5ee; --warn:#9a5b00; --warn-soft:#fdf1dc;
+    --danger:#a1152b; --danger-soft:#fbe9ec;
+    --mono:'SFMono-Regular',ui-monospace,Menlo,Consolas,monospace;
+    --sans:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);line-height:1.62;font-size:16px}
+  a{color:var(--accent);text-decoration:none}
+  a:hover{text-decoration:underline}
+  .topbar{position:sticky;top:0;z-index:50;background:rgba(255,255,255,.92);backdrop-filter:blur(8px);border-bottom:1px solid var(--line)}
+  .topbar .inner{max-width:1120px;margin:0 auto;padding:12px 24px;display:flex;align-items:center;gap:18px;flex-wrap:wrap}
+  .brand{font-weight:700;letter-spacing:-.01em}
+  .brand small{display:block;font-weight:500;color:var(--muted);font-size:12px}
+  .nav{margin-left:auto;display:flex;gap:6px}
+  .nav a{padding:6px 12px;border-radius:8px;color:var(--muted);font-weight:600;font-size:14px}
+  .nav a.active{background:var(--accent-soft);color:var(--accent)}
+  .nav a:hover{background:var(--code-bg);text-decoration:none}
+  main{max-width:1120px;margin:0 auto;padding:36px 24px 96px}
+  h1{font-size:32px;letter-spacing:-.02em;margin:.2em 0 .1em}
+  .lede{color:var(--muted);font-size:17px;max-width:74ch;margin:0 0 20px}
+  h2{font-size:23px;letter-spacing:-.01em;margin:52px 0 12px;padding-bottom:8px;border-bottom:2px solid var(--line)}
+  h2 .num{color:var(--accent);font-variant-numeric:tabular-nums;margin-right:10px;font-size:19px}
+  h3{font-size:17px;margin:26px 0 8px}
+  section{scroll-margin-top:80px}
+  p{margin:10px 0}
+  ul,ol{margin:10px 0;padding-left:22px}
+  li{margin:4px 0}
+  code{font-family:var(--mono);font-size:.87em;background:var(--code-bg);padding:2px 6px;border-radius:5px}
+  pre{background:var(--code-bg);border:1px solid var(--line);border-radius:10px;padding:16px;overflow-x:auto;font-family:var(--mono);font-size:13px;line-height:1.55}
+  pre code{background:none;padding:0;font-size:inherit}
+  table{width:100%;border-collapse:collapse;margin:14px 0;font-size:14px;background:var(--panel);border:1px solid var(--line);border-radius:10px;overflow:hidden}
+  th,td{text-align:left;padding:9px 13px;border-bottom:1px solid var(--line);vertical-align:top}
+  th{background:#fafbfc;font-size:12px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted)}
+  tr:last-child td{border-bottom:none}
+  td code{font-size:.85em}
+  .diagram{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:22px;margin:18px 0;overflow-x:auto;text-align:center}
+  .callout{border-radius:10px;padding:14px 16px;margin:16px 0;border:1px solid;font-size:14.5px}
+  .callout .tag{font-weight:700;font-size:12px;text-transform:uppercase;letter-spacing:.05em;display:block;margin-bottom:4px}
+  .callout.key{background:var(--accent-soft);border-color:#cddcff}.callout.key .tag{color:var(--accent)}
+  .callout.ok{background:var(--ok-soft);border-color:#bfe6d2}.callout.ok .tag{color:var(--ok)}
+  .callout.warn{background:var(--warn-soft);border-color:#f0dcae}.callout.warn .tag{color:var(--warn)}
+  .callout.danger{background:var(--danger-soft);border-color:#f1c4cd}.callout.danger .tag{color:var(--danger)}
+  .toc{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px 20px;margin:8px 0 24px}
+  .toc h4{margin:0 0 10px;font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+  .toc ol{columns:2;column-gap:34px;margin:0;padding-left:18px;font-size:14px}
+  .must-not td:last-child{color:var(--danger)}
+  .badge{display:inline-block;font-size:10.5px;font-weight:700;padding:2px 7px;border-radius:999px;vertical-align:middle;text-transform:uppercase;letter-spacing:.03em}
+  .badge.must{background:var(--danger-soft);color:var(--danger)}
+  .badge.should{background:var(--warn-soft);color:var(--warn)}
+  .badge.could{background:var(--accent-soft);color:var(--accent)}
+  .badge.wont{background:var(--code-bg);color:var(--muted)}
+  footer{max-width:1120px;margin:0 auto;padding:24px;color:var(--muted);font-size:13px;border-top:1px solid var(--line)}
+  @media (max-width:640px){.toc ol{columns:1}}
+  @media (prefers-color-scheme: dark){
+    :root{--bg:#12161d;--panel:#1a1f29;--ink:#e6e9ef;--muted:#9aa4b2;--line:#2a3140;--accent:#7aa2ff;--accent-soft:#1e2a44;--code-bg:#0f131a;--ok:#57c99a;--ok-soft:#12261e;--warn:#e0b877;--warn-soft:#2a2113;--danger:#f2879a;--danger-soft:#2b1319}
+    .topbar{background:rgba(20,24,31,.9)}
+    th{background:#151a22}
+    .diagram{background:#161b23}
+  }
+</style>
+</head>
+<body>
+<div class="topbar"><div class="inner">
+  <div class="brand">Metrics That Never Drift <small>Problem 2 · Backend Assignment</small></div>
+  <nav class="nav">
+    <a href="lld.html" class="active">LLD</a>
+    <a href="erd.html">ERD</a>
+    <a href="flow.html">Flow</a>
+  </nav>
+</div></div>
+
+<main>
+  <h1>Low-Level Design</h1>
+  <p class="lede">A metrics service that computes <em>total revenue collected</em> over an arbitrary date range across
+  multiple sources, from one canonical definition, exposed through two views that agree by construction — with a CI
+  mechanism that fails the build if a second implementation of the number ever appears. Stack: Node 20 · TypeScript
+  (strict) · Express · <code>postgres.js</code> · Zod · Vitest · fast-check · Neon Postgres.</p>
+
+  <div class="toc">
+    <h4>Contents</h4>
+    <ol>
+      <li><a href="#overview">Overview &amp; the load-bearing rule</a></li>
+      <li><a href="#layers">Architecture layers</a></li>
+      <li><a href="#structure">Folder structure &amp; file contract</a></li>
+      <li><a href="#schema">Schema (DDL)</a></li>
+      <li><a href="#definition">The canonical definition</a></li>
+      <li><a href="#types">Type design &amp; exhaustiveness</a></li>
+      <li><a href="#api">API contracts</a></li>
+      <li><a href="#money-time">Money &amp; time handling</a></li>
+      <li><a href="#tripwires">Anti-drift tripwires</a></li>
+      <li><a href="#resilience">Errors &amp; resilience</a></li>
+      <li><a href="#config">Configuration &amp; environment</a></li>
+      <li><a href="#tests">Test matrix</a></li>
+      <li><a href="#epics">Delivery plan</a></li>
+      <li><a href="#decisions">Decision log</a></li>
+      <li><a href="#scope">Out of scope &amp; production notes</a></li>
+    </ol>
+  </div>
+
+  <section id="overview">
+    <h2><span class="num">1</span>Overview &amp; the load-bearing rule</h2>
+    <div class="callout key"><span class="tag">The invariant everything serves</span>
+      Exactly one component knows which statuses count as collected, and every read path goes through it. That component
+      is the <code>collected_revenue()</code> SQL function, parameterised by <code>COLLECTED_STATUSES</code> — a constant
+      declared once in <code>metrics.definition.ts</code>. No SQL string anywhere contains a canonical status literal.</div>
+    <p>Ingestion writes <code>raw_status</code> verbatim and never interprets it. Interpretation happens once, at read
+    time, by joining to <code>status_map</code>. That separation is what lets a new source or a new status value arrive
+    without touching the metric — adding a fourth source is a new folder plus rows in <code>status_map</code>; no file
+    under <code>metrics/</code> changes.</p>
+    <p><strong>Why the definition lives in SQL.</strong> A Postgres function is the narrowest possible surface: both
+    endpoints call it, no application code can bypass it without writing raw SQL against <code>transactions.status</code>,
+    and that bypass is exactly what the anti-drift grep guard detects. A TypeScript-only definition would be equally
+    valid but gives the enforcement test a fuzzier boundary.</p>
+    <div class="callout ok"><span class="tag">Scope discipline</span>
+      No Kafka, no orchestrator, no hexagonal architecture — none is justified by this workload. An Express service,
+      three tables and a genuinely good test suite reads as more senior than infrastructure the brief never asked for.</div>
+  </section>
+
+  <section id="layers">
+    <h2><span class="num">2</span>Architecture layers</h2>
+    <table class="must-not">
+      <thead><tr><th>Layer</th><th>Responsibility</th><th>Must not</th></tr></thead>
+      <tbody>
+        <tr><td><strong>Adapters</strong></td><td>Fetch from one source, map field names, emit a canonical row</td><td>Interpret status meaning</td></tr>
+        <tr><td><strong>Ingest</strong></td><td>Upsert rows idempotently, quarantine bad ones</td><td>Filter by status</td></tr>
+        <tr><td><strong>Definition</strong></td><td>Own the allow-list and the bucketing</td><td>Know about HTTP</td></tr>
+        <tr><td><strong>API</strong></td><td>Shape the response, validate params</td><td>Contain any aggregation logic</td></tr>
+        <tr><td><strong>Enforcement</strong></td><td>Fail the build when the above is violated</td><td>Be skippable in CI</td></tr>
+      </tbody>
+    </table>
+    <p><code>sources/</code> (the write side) and <code>metrics/</code> (a read model over all sources) sit at different
+    levels deliberately. Flattening both into <code>api/</code> would imply a symmetry that does not exist and is what
+    makes the guard rule awkward to state.</p>
+  </section>
+
+  <section id="structure">
+    <h2><span class="num">3</span>Folder structure &amp; file contract</h2>
+<pre><code>src/
+  sources/                    the write side: one folder per source
+    stripe/
+      stripe.routes.ts        POST /sources/stripe/sync
+      stripe.controller.ts    request in, response out, no logic
+      stripe.service.ts       fetches charges from test mode
+      stripe.mapper.ts        Stripe charge -> CanonicalTransaction
+      stripe.schema.ts        Zod over the provider payload
+      stripe.types.ts
+    razorpay/                 same five files (captured / authorized)
+      razorpay.routes.ts      POST /sources/razorpay/sync
+      razorpay.controller.ts
+      razorpay.service.ts
+      razorpay.mapper.ts
+      razorpay.schema.ts
+    legacy-erp/
+      legacy-erp.routes.ts    POST /sources/legacy-erp/sync
+      legacy-erp.controller.ts
+      legacy-erp.service.ts   reads the CSV
+      legacy-erp.mapper.ts
+      legacy-erp.schema.ts
+  ingestion/                  orchestration across sources
+    ingestion.routes.ts       POST /ingest/run   fault-isolated
+    ingestion.controller.ts
+    ingestion.service.ts      runs each source, isolates failures
+    ingestion.repository.ts   upsert on conflict
+    ingestion.types.ts        CanonicalTransaction is declared here
+  metrics/                    the read side
+    metrics.routes.ts         GET /metrics/revenue/summary
+                              GET /metrics/revenue/breakdown
+    metrics.controller.ts     validates params, no arithmetic
+    metrics.service.ts        folds buckets into totals
+    metrics.repository.ts     the ONLY caller of collected_revenue()
+    metrics.definition.ts     COLLECTED_STATUSES. The only declaration
+    metrics.schema.ts         one Zod schema shared by both routes
+    metrics.types.ts
+  shared/
+    config/env.ts             typed environment, fails fast at boot
+    db/client.ts              pooled Postgres client
+    db/migrations/            numbered SQL, includes collected_revenue()
+    errors/app-error.ts       error-handler.ts
+    money/minor-units.ts      decimal string -> bigint, no floats
+    time/range.ts             half-open range and timezone resolution
+  app.ts                      mounts every module's routes
+  server.ts
+
+tests/
+  unit/         metrics.definition.test.ts, stripe.mapper.test.ts
+  integration/  ingestion.idempotency.test.ts, metrics.timezone.test.ts
+  property/     metrics.reconciliation.test.ts
+  guards/       single-implementation.test.ts, mapping-coverage.test.ts
+
+scripts/
+  make-legacy-csv.ts  seed-stripe.ts  demo.sh</code></pre>
+
+    <h3>The file contract, identical in every domain</h3>
+    <table class="must-not">
+      <thead><tr><th>File</th><th>Owns</th><th>Must not</th></tr></thead>
+      <tbody>
+        <tr><td><code>*.routes.ts</code></td><td>Path, method, middleware wiring</td><td>Contain handler bodies</td></tr>
+        <tr><td><code>*.controller.ts</code></td><td>Parse, validate, delegate, shape the response</td><td>Query the DB or aggregate</td></tr>
+        <tr><td><code>*.service.ts</code></td><td>Domain logic and orchestration</td><td>Write SQL</td></tr>
+        <tr><td><code>*.repository.ts</code></td><td>All SQL for that domain</td><td>Know about HTTP</td></tr>
+        <tr><td><code>*.mapper.ts</code></td><td>Provider shape → canonical shape</td><td>Interpret status meaning</td></tr>
+        <tr><td><code>*.schema.ts</code></td><td>Zod schemas and inferred types</td><td>Hold defaults that differ per route</td></tr>
+      </tbody>
+    </table>
+    <div class="callout key"><span class="tag">Two rules the guard tests enforce</span>
+      <strong>(1)</strong> Only <code>metrics/</code> may contain SQL that reads <code>transactions</code> for revenue —
+      a source module reads and writes its own ingestion rows, never the metric.
+      <strong>(2)</strong> Only <code>metrics.definition.ts</code> may declare a canonical status literal, in any
+      language. Provider status strings appear only in mappers, the seed file and tests.</div>
+  </section>
+
+  <section id="schema">
+    <h2><span class="num">4</span>Schema (DDL)</h2>
+    <p>Full data model, field-by-field rationale, and the “why no foreign key” argument live in the
+    <a href="erd.html">ERD</a>. The DDL, as it ships in migration <code>001</code>:</p>
+<pre><code>create table transactions (
+  id            bigserial   primary key,
+  source        text        not null,
+  external_id   text        not null,
+  raw_status    text        not null,
+  amount_minor  bigint      not null,
+  currency      char(3)     not null,
+  occurred_at   timestamptz not null,
+  raw           jsonb       not null,
+  ingested_at   timestamptz not null default now(),
+  unique (source, external_id)
+);
+
+create table status_map (
+  source     text not null,
+  raw_status text not null,
+  canonical  text not null
+    check (canonical in ('collected','pending','failed','refunded','voided')),
+  primary key (source, raw_status)
+);
+
+create table ingest_quarantine (
+  id          bigserial   primary key,
+  source      text        not null,
+  payload     jsonb       not null,
+  error       text        not null,
+  created_at  timestamptz not null default now()
+);
+
+create index on transactions (occurred_at);
+create index on transactions (source, raw_status);</code></pre>
+    <p><code>unique (source, external_id)</code> is what makes re-running a sync safe. <code>raw</code> is kept so a
+    mapping mistake can be corrected without re-fetching from the provider. There is <strong>no</strong> FK from
+    <code>transactions</code> to <code>status_map</code> — unmapped rows must be insertable so they can be reported as
+    <code>unclassified</code>.</p>
+  </section>
+
+  <section id="definition">
+    <h2><span class="num">5</span>The canonical definition</h2>
+    <div class="callout key"><span class="tag">In one sentence</span>
+      Collected revenue for a range is the sum of <code>amount_minor</code>, grouped by currency, over transactions
+      whose <code>(source, raw_status)</code> maps to a canonical status in <code>COLLECTED_STATUSES</code>, where
+      <code>occurred_at</code> falls in the half-open interval <code>[from, to)</code> evaluated in the caller's
+      timezone. <code>COLLECTED_STATUSES</code> is declared once in TypeScript and passed into SQL as a parameter.</div>
+
+    <h3>The function both endpoints call (migration 002)</h3>
+<pre><code>create or replace function collected_revenue(
+  p_from      timestamptz,
+  p_to        timestamptz,
+  p_tz        text,
+  p_bucket    text,
+  p_collected text[]          -- passed in from metrics.definition.ts
+) returns table (bucket_start date, currency char(3), amount_minor bigint)
+language sql stable as $$
+  select (date_trunc(p_bucket, t.occurred_at at time zone p_tz))::date,
+         t.currency,
+         sum(t.amount_minor)
+  from transactions t
+  join status_map m
+    on m.source = t.source and m.raw_status = t.raw_status
+  where m.canonical = any(p_collected)
+    and t.occurred_at >= p_from
+    and t.occurred_at <  p_to
+  group by 1, 2
+  order by 1, 2;
+$$;</code></pre>
+    <p>Two things are deliberate. The <strong>inner join</strong> means an unmapped status cannot match and therefore
+    cannot be counted — the allow-list expressed structurally. And <code>p_collected</code> is a <strong>parameter</strong>,
+    not a hardcoded literal, so the definition exists in exactly one place. The trade — a caller could pass a different
+    array — is closed by the single-implementation guard, which asserts only <code>metrics.repository.ts</code> ever
+    calls this function.</p>
+
+    <h3>Edge-case rulings, decided once and written down</h3>
+    <table>
+      <thead><tr><th>Question</th><th>Ruling</th><th>Reason</th></tr></thead>
+      <tbody>
+        <tr><td>Are refunds netted out?</td><td>The question doesn't arise — status is one field per row, so a refunded transaction leaves the collected set by exclusion</td><td>Gross-vs-net is only a debate when refunds are separate negative records</td></tr>
+        <tr><td>Partial refunds?</td><td>Out of scope; named in the README as a known limitation</td><td>Stripe models these as separate refund objects this build does not ingest</td></tr>
+        <tr><td>Multiple currencies?</td><td>Totals returned per currency; no conversion</td><td>Summing INR and USD produces a number that is confidently wrong</td></tr>
+        <tr><td>Unknown status?</td><td>Contributes zero, and is counted in <code>unclassified</code></td><td>Fail closed, report loudly</td></tr>
+        <tr><td>Timezone?</td><td>Caller supplies an IANA tz, defaulting to UTC; both views use the same value</td><td>Mixed bucketing is the single most common source of drift</td></tr>
+        <tr><td>Where does the allow-list live?</td><td>One TypeScript constant, passed into SQL as <code>text[]</code></td><td>A literal in both SQL and TS would itself be the second implementation the brief warns about</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section id="types">
+    <h2><span class="num">6</span>Type design &amp; exhaustiveness</h2>
+    <p><code>metrics.definition.ts</code> is the only permitted home for canonical status literals. Adding a canonical
+    status here forces every handler to be revisited — because a compile error is a better reminder than a code review.</p>
+<pre><code>// metrics.definition.ts — the ONLY file allowed to name canonical status literals.
+
+export const CANONICAL_STATUSES =
+  ['collected', 'pending', 'failed', 'refunded', 'voided'] as const;
+
+export type CanonicalStatus = typeof CANONICAL_STATUSES[number];
+
+// The allow-list. Exactly one meaning counts as revenue.
+// Do NOT re-declare 'collected' anywhere else — the E5-S3 guard greps for it.
+export const COLLECTED_STATUSES: readonly CanonicalStatus[] = ['collected'];
+
+export function assertNever(x: never): never {
+  throw new Error(`Unhandled canonical status: ${x as string}`);
+}</code></pre>
+    <p>Every <code>switch</code> over <code>CanonicalStatus</code> ends in <code>assertNever</code>, so adding a sixth
+    status makes <code>tsc</code> fail until every site is updated (E5-S4). <code>pnpm typecheck</code> runs in CI and
+    blocks merge. A documented experiment in the README shows the compile break in action.</p>
+  </section>
+
+  <section id="api">
+    <h2><span class="num">7</span>API contracts</h2>
+    <h3>Endpoints</h3>
+    <table>
+      <thead><tr><th>Method &amp; path</th><th>Purpose</th></tr></thead>
+      <tbody>
+        <tr><td><code>GET /metrics/revenue/summary</code></td><td>One total per currency for the range</td></tr>
+        <tr><td><code>GET /metrics/revenue/breakdown</code></td><td>One entry per bucket per currency (day/week)</td></tr>
+        <tr><td><code>POST /sources/stripe/sync</code></td><td>Pull Stripe test-mode charges, normalize, upsert</td></tr>
+        <tr><td><code>POST /sources/razorpay/sync</code></td><td>Pull Razorpay test-mode payments, normalize, upsert</td></tr>
+        <tr><td><code>POST /sources/legacy-erp/sync</code></td><td>Read the legacy CSV, normalize, upsert</td></tr>
+        <tr><td><code>POST /ingest/run</code></td><td>Run all sources, fault-isolated, with a per-source summary</td></tr>
+      </tbody>
+    </table>
+
+    <h3>Shared parameter validation (one Zod schema, both metric routes)</h3>
+<pre><code>// metrics.schema.ts
+const RangeParams = z.object({
+  from: z.string(),                        // ISO date/datetime
+  to:   z.string(),                        // exclusive — the README says so
+  tz:   z.string().default('UTC')          // validated against the IANA database
+          .refine(isValidIanaZone, 'unknown timezone'),
+  currency: z.string().length(3).optional()
+}).refine(p => Date.parse(p.to) > Date.parse(p.from),
+          { message: 'to must be after from', path: ['to'] });
+
+const BreakdownParams = RangeParams.extend({
+  bucket: z.enum(['day', 'week']).default('day')
+});</code></pre>
+    <p><code>to</code> is exclusive; <code>tz</code> defaults to UTC and is validated; an invalid range where
+    <code>to &lt;= from</code> returns <code>400</code> with a readable message. The <em>same</em> parsed range feeds both
+    views, so they are comparable by definition.</p>
+
+    <h3>Summary response — a total, derived by folding the breakdown</h3>
+<pre><code>GET /metrics/revenue/summary?from=2026-01-01&amp;to=2026-04-01&amp;tz=Asia/Kolkata
+
+{
+  "range": { "from": "2026-01-01T00:00:00+05:30",
+             "to":   "2026-04-01T00:00:00+05:30", "tz": "Asia/Kolkata" },
+  "definition": "collected",
+  "totals": [ { "currency": "INR", "amount_minor": "4820000" },
+              { "currency": "USD", "amount_minor": "129900" } ],
+  "unclassified": { "count": 0, "pairs": [] }
+}</code></pre>
+    <div class="callout ok"><span class="tag">Derived, not computed beside</span>
+      The summary handler calls the same repository function and folds the buckets; it issues no aggregate query of its
+      own. A code comment states this is deliberate and must not be “optimised” into a separate query. That is the
+      structural answer to <em>“make sure both views always agree.”</em></div>
+
+    <h3>Breakdown response — same envelope, buckets in place of totals</h3>
+<pre><code>GET /metrics/revenue/breakdown?from=2026-01-01&amp;to=2026-04-01&amp;tz=Asia/Kolkata&amp;bucket=week
+
+{
+  "range": { "from": "…", "to": "…", "tz": "Asia/Kolkata", "bucket": "week" },
+  "definition": "collected",
+  "buckets": [
+    { "bucketStart": "2026-01-01", "currency": "INR", "amount_minor": "250000" },
+    { "bucketStart": "2026-01-08", "currency": "INR", "amount_minor": "0" }
+  ],
+  "unclassified": { "count": 0, "pairs": [] }
+}</code></pre>
+    <ul>
+      <li>Amounts are returned as <code>amount_minor</code> (a string, driver-safe for <code>bigint</code>) with an
+      explicit <code>currency</code> — never a formatted string. Every derived representation is another place to drift.</li>
+      <li>Empty buckets are present with zero (filled by <code>generate_series</code> in SQL), so the series has no gaps
+      and a consumer's own sum matches.</li>
+      <li>Every response echoes the applied <code>from</code>, <code>to</code>, <code>tz</code> and <code>bucket</code>,
+      so a screenshot is self-describing.</li>
+      <li><code>unclassified</code> is identical across both endpoints.</li>
+    </ul>
+  </section>
+
+  <section id="money-time">
+    <h2><span class="num">8</span>Money &amp; time handling</h2>
+    <table>
+      <thead><tr><th>Concern</th><th>Rule</th></tr></thead>
+      <tbody>
+        <tr><td>Money storage</td><td>Integer minor units in <code>bigint</code>. Never float, never a numeric that could be summed loosely.</td></tr>
+        <tr><td>Decimal parsing</td><td>Decimal strings (<code>1250.50</code>) → minor units via string/decimal math. <code>parseFloat(x)*100</code> is banned — it yields <code>125049.999…</code>.</td></tr>
+        <tr><td><code>bigint</code> over the wire</td><td>Postgres drivers return <code>bigint</code> as a string. The API emits a string <code>amount_minor</code> with a currency beside it; decided once, documented.</td></tr>
+        <tr><td>Range semantics</td><td>Half-open <code>[from, to)</code> everywhere — <code>&gt;= from and &lt; to</code>. A midnight-boundary event is never double-counted.</td></tr>
+        <tr><td>Timezone</td><td>One IANA <code>tz</code> parameter, applied in the repository only, identically to both views. <code>date_trunc(bucket, occurred_at at time zone tz)</code>.</td></tr>
+        <tr><td>Gap filling</td><td><code>generate_series</code> in SQL, under the same timezone logic as the aggregation — not in JavaScript.</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section id="tripwires">
+    <h2><span class="num">9</span>Anti-drift tripwires (Epic 5)</h2>
+    <p>The brief's hardest clause asks for something that would <em>catch</em> a second implementation. The deliverable
+    is a mechanism, not a convention. Four tests fail the build.</p>
+    <table>
+      <thead><tr><th>ID</th><th>Tripwire</th><th>What it asserts</th></tr></thead>
+      <tbody>
+        <tr><td><strong>E5-S1</strong></td><td>Reconciliation property test</td><td><code>fast-check</code> over ~200 random ranges (multi-year, multiple timezones, day &amp; week): Σ breakdown buckets per currency <code>==</code> summary total, <em>strict integer equality, no tolerance</em>.</td></tr>
+        <tr><td><strong>E5-S2</strong></td><td>Mapping coverage</td><td>The <code>except</code> query returns zero rows — every <code>(source, raw_status)</code> in <code>transactions</code> exists in <code>status_map</code>. Failure lists the offending pairs.</td></tr>
+        <tr><td><strong>E5-S3</strong></td><td>Single-implementation guard</td><td>Grep scan: <code>collected</code> literal only in <code>metrics.definition.ts</code>; no canonical literal in any SQL string; provider words only in mappers/seed/tests; <code>collected_revenue()</code> called by exactly one module; no <code>from transactions</code> SQL outside <code>src/metrics/</code>.</td></tr>
+        <tr><td><strong>E5-S4</strong></td><td>Type exhaustiveness</td><td>Every <code>switch</code> over <code>CanonicalStatus</code> ends in <code>assertNever</code>; adding a sixth status breaks <code>tsc</code> until all sites update. Runs in CI.</td></tr>
+      </tbody>
+    </table>
+    <h3>The demonstration that makes it land</h3>
+    <p>Record the enforcement <em>working</em>, not merely present — three deliberate breakages, three tripwires firing,
+    with real terminal output pasted into the README.</p>
+    <table>
+      <thead><tr><th>Breakage introduced</th><th>Tripwire that fires</th></tr></thead>
+      <tbody>
+        <tr><td>Seed a disputed status without mapping it</td><td>E5-S2 mapping coverage</td></tr>
+        <tr><td>Write a second summary query using <code>sum()</code> in a route</td><td>E5-S3 single-implementation guard</td></tr>
+        <tr><td>Bucket the breakdown in UTC while summary uses <code>tz</code></td><td>E5-S1 reconciliation</td></tr>
+      </tbody>
+    </table>
+    <div class="callout warn"><span class="tag">Honest about the tool</span>
+      The grep guard is intentionally crude, and the README says so. An AST/ESLint rule would be more precise, but a
+      regex scan that runs in CI and fails loudly is a better trade at this scale than a custom plugin nobody reads.
+      The property test runs against real seeded Stripe/Razorpay rows, so it proves timezone handling, not just arithmetic.</div>
+  </section>
+
+  <section id="resilience">
+    <h2><span class="num">10</span>Errors &amp; resilience</h2>
+    <ul>
+      <li>A database error returns <code>503</code> with a correlation id (a per-request UUID, logged and echoed), never a stack trace.</li>
+      <li>Invalid parameters return <code>400</code> naming the offending field.</li>
+      <li>Ingestion from one source failing does not prevent the other two from completing; the ingest summary reports per-source outcome, including which source failed and why.</li>
+      <li>A record failing Zod validation goes to <code>ingest_quarantine</code> with its payload and error; the batch continues.</li>
+      <li>Structured logs carry source, counts and duration for each run.</li>
+    </ul>
+  </section>
+
+  <section id="config">
+    <h2><span class="num">11</span>Configuration &amp; environment</h2>
+    <p><code>shared/config/env.ts</code> parses the environment with Zod and fails fast at boot — a missing variable
+    exits with a readable message naming it. <code>.env.example</code> lists every variable with a comment; no secret is
+    committed.</p>
+    <table>
+      <thead><tr><th>Variable</th><th>Purpose</th></tr></thead>
+      <tbody>
+        <tr><td><code>DATABASE_URL</code></td><td>Neon <strong>pooled</strong> connection string (see note below)</td></tr>
+        <tr><td><code>PORT</code></td><td>HTTP port (default 3000)</td></tr>
+        <tr><td><code>DEFAULT_TZ</code></td><td>Fallback IANA timezone when the caller omits <code>tz</code> (default <code>UTC</code>)</td></tr>
+        <tr><td><code>STRIPE_SECRET_KEY</code></td><td>Stripe test-mode secret key</td></tr>
+        <tr><td><code>RAZORPAY_KEY_ID</code> / <code>RAZORPAY_KEY_SECRET</code></td><td>Razorpay test-mode credentials</td></tr>
+        <tr><td><code>LEGACY_CSV_PATH</code></td><td>Path to the generated legacy ERP CSV</td></tr>
+      </tbody>
+    </table>
+    <div class="callout danger"><span class="tag">Neon: use the pooled endpoint</span>
+      The property test fires ~200 range queries and will exhaust <em>direct</em> connections. Use the Neon
+      <strong>pooler</strong> host — <code>ep-polished-shadow-azzzg601-pooler.c-3.ap-southeast-1.aws.neon.tech</code>
+      (note the <code>-pooler</code> suffix) — not the direct one. This is the Neon equivalent of the plan's
+      “Supabase session pooler, not direct connection” trap.</div>
+    <div class="callout key"><span class="tag">Database: Neon, Supabase-compatible</span>
+      The schema is standard Postgres. The brief names Supabase; this build runs on Neon and is portable to a free
+      Supabase project by swapping <code>DATABASE_URL</code> alone — stated in the README as a deliberate, reversible
+      choice.</div>
+  </section>
+
+  <section id="tests">
+    <h2><span class="num">12</span>Test matrix</h2>
+    <table>
+      <thead><tr><th>Suite</th><th>File</th><th>Proves</th></tr></thead>
+      <tbody>
+        <tr><td>unit</td><td><code>metrics.definition.test.ts</code></td><td>The allow-list is exactly <code>['collected']</code>; exhaustiveness holds.</td></tr>
+        <tr><td>unit</td><td><code>stripe.mapper.test.ts</code></td><td>Provider payload → canonical row; status copied verbatim.</td></tr>
+        <tr><td>unit</td><td><code>minor-units.test.ts</code></td><td>Decimal → minor units with no floating-point error.</td></tr>
+        <tr><td>integration</td><td><code>ingestion.idempotency.test.ts</code></td><td>Second full ingest leaves the row count unchanged.</td></tr>
+        <tr><td>integration</td><td><code>metrics.timezone.test.ts</code></td><td>Boundary rows bucket correctly per timezone.</td></tr>
+        <tr><td>property</td><td><code>metrics.reconciliation.test.ts</code></td><td>Σ breakdown == summary across random ranges (E5-S1).</td></tr>
+        <tr><td>guards</td><td><code>mapping-coverage.test.ts</code></td><td>No unmapped <code>(source, raw_status)</code> (E5-S2).</td></tr>
+        <tr><td>guards</td><td><code>single-implementation.test.ts</code></td><td>The definition is not forked (E5-S3).</td></tr>
+      </tbody>
+    </table>
+    <p>A single <code>pnpm test</code> runs unit, property and guard suites and passes from a clean clone; CI also runs
+    <code>pnpm typecheck</code> on push.</p>
+  </section>
+
+  <section id="epics">
+    <h2><span class="num">13</span>Delivery plan</h2>
+    <p>Six epics, twenty-two stories. Epics 3 and 5 carry the marks; 1 and 2 exist to make them possible.</p>
+    <table>
+      <thead><tr><th>Epic</th><th>Goal</th><th>Stories</th><th>Effort</th><th>Depends on</th></tr></thead>
+      <tbody>
+        <tr><td>E1 Foundation</td><td>Repo, database, migrations, config</td><td>4</td><td>3h</td><td>—</td></tr>
+        <tr><td>E2 Ingestion</td><td>Three sources land as normalized rows</td><td>5</td><td>6h</td><td>E1</td></tr>
+        <tr><td>E3 Metric Engine</td><td>One definition, correct and typed</td><td>4</td><td>5h</td><td>E1, part E2</td></tr>
+        <tr><td>E4 API Layer</td><td>Two views that agree by construction</td><td>4</td><td>4h</td><td>E3</td></tr>
+        <tr><td>E5 Anti-Drift</td><td>Four tripwires that fail the build</td><td>4</td><td>5h</td><td>E3, E4</td></tr>
+        <tr><td>E6 Resilience &amp; Submission</td><td>Errors, README, demo script</td><td>3</td><td>3h</td><td>All</td></tr>
+      </tbody>
+    </table>
+    <div class="diagram">
+<pre class="mermaid">
+flowchart LR
+  E1[E1 Foundation] --> E2[E2 Ingestion]
+  E1 --> E3[E3 Metric Engine]
+  E2 --> E3
+  E3 --> E4[E4 API Layer]
+  E3 --> E5[E5 Anti-Drift]
+  E4 --> E5
+  E5 --> E6[E6 Submission]
+</pre>
+    </div>
+    <h3>Priority (MoSCoW) &amp; the cut list</h3>
+    <p>
+      <span class="badge must">Must</span> All of E1, E3, E4, E5 &nbsp;
+      <span class="badge should">Should</span> E2-S1…S4, E6-S2 &nbsp;
+      <span class="badge could">Could</span> E2-S5 quarantine, E6-S3 demo &nbsp;
+      <span class="badge wont">Won't</span> Auth, pagination, caching, multi-tenancy, UI
+    </p>
+    <p>If time runs short, cut in this order: Razorpay → empty-bucket filling → week bucketing → the quarantine table →
+    the ingest orchestration route → structured logging. <strong>Never cut</strong> the property test, the mapping-coverage
+    test, the single-implementation guard, or the README's enforcement section. Two sources with four working tripwires
+    beats three sources with none. The “Won't” row belongs in the README — stating what you deliberately left out is a
+    stronger signal than quietly omitting it. Story-level acceptance criteria are tracked per epic below.</p>
+  </section>
+
+  <section id="decisions">
+    <h2><span class="num">14</span>Decision log</h2>
+    <p>Each row is a fork taken knowingly, with the rejected option and the reason — the difference between a decision
+    and a default.</p>
+    <table>
+      <thead><tr><th>Decision</th><th>Chosen</th><th>Rejected</th><th>Reason</th></tr></thead>
+      <tbody>
+        <tr><td>Where the allow-list lives</td><td>One TypeScript constant passed into SQL</td><td>A literal hardcoded in the SQL function</td><td>A literal in both languages is itself a second implementation. One declaration + a grep guard is stronger.</td></tr>
+        <tr><td>When status is interpreted</td><td>Read time, joined to <code>status_map</code></td><td>Write time, a <code>canonical_status</code> column</td><td>A new status becomes one row, not a backfill. “Even after a new status is added” is the tiebreaker.</td></tr>
+        <tr><td>How the summary is produced</td><td>Folded from the breakdown in the service</td><td>A second aggregate query / <code>ROLLUP</code></td><td>The fold is verifiable at a glance; ROLLUP is less obviously correct to a reader.</td></tr>
+        <tr><td>Refund handling</td><td>Excluded by allow-list (status is one field per row)</td><td>Netting refunds against collected</td><td>Gross-vs-net only arises with separate negative records; out of scope for the time available.</td></tr>
+        <tr><td>Currency</td><td>Per-currency totals, no conversion</td><td>A single converted total</td><td>Conversion needs dated FX to be defensible. An unconverted, labelled number beats a converted, quietly-wrong one.</td></tr>
+        <tr><td>Money representation</td><td><code>bigint</code> minor units</td><td><code>numeric</code></td><td>Both exact; integers make the property test's strict equality trivially safe and force the currency question up.</td></tr>
+        <tr><td>Pre-aggregation</td><td>None</td><td>A materialized daily view</td><td>A materialized view is a second implementation in a performance costume; if added it must select from <code>collected_revenue()</code>.</td></tr>
+        <tr><td>Ingestion trigger</td><td>HTTP route per source</td><td>CLI scripts</td><td>Demoable with curl beside the metrics endpoints. The auth question is named in the README as out of scope.</td></tr>
+        <tr><td>Database host</td><td>Neon (pooled)</td><td>Supabase (brief-named)</td><td>Identical Postgres; Neon was already provisioned. Portable to Supabase via <code>DATABASE_URL</code>; noted in the README.</td></tr>
+      </tbody>
+    </table>
+    <h3>The two questions a reviewer will ask</h3>
+    <p><strong>Why isn't the definition just a view?</strong> A view would fix the allow-list inside the database,
+    putting the definition back in two languages. A parameterised function keeps one declaration and lets the guard test
+    assert it.</p>
+    <p><strong>What happens when a source renames a status?</strong> The old mapping stays, the new one is added, and
+    historical numbers are unchanged because rows carry the raw status they arrived with. What this build lacks is
+    validity-dating on the mapping — correcting a past mapping error would retroactively change a reported figure. That
+    is the first thing to add in production.</p>
+  </section>
+
+  <section id="scope">
+    <h2><span class="num">15</span>Out of scope &amp; production notes</h2>
+    <h3>Deliberately out of scope</h3>
+    <p>Authentication, pagination, caching, multi-tenancy, a UI, partial-refund modelling, and FX conversion. Each is
+    named in the README so the omission reads as a decision, not an oversight.</p>
+    <h3>What I'd add in production</h3>
+    <ul>
+      <li>Append-only status events with validity-dating on the mapping, so a corrected mapping doesn't rewrite history.</li>
+      <li>Alerting on a rising <code>unclassified</code> count — the early signal that a source added a status.</li>
+      <li>Dated FX rates with an as-of date, if a single converted total is ever required.</li>
+      <li>An AST-based lint rule replacing the grep guard, once the codebase is large enough to justify it.</li>
+    </ul>
+    <div class="callout ok"><span class="tag">The two-minute self-review before submitting</span>
+      Open <code>metrics.definition.ts</code> — is it the only file naming a canonical status? Open
+      <code>metrics.controller.ts</code> — does the summary handler contain any arithmetic beyond a fold? Run the property
+      test with a deliberately broken timezone and confirm it fails. If all three answer correctly, the submission is sound.</div>
+  </section>
+</main>
+
+<footer>Problem 2 — “one metrics number that never drifts.” Companion docs: <a href="erd.html">ERD</a> · <a href="flow.html">Flow</a> · <a href="WALKTHROUGH.md">Walkthrough</a>.</footer>
+
+<script type="module">
+  import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
+  const dark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+  mermaid.initialize({ startOnLoad: true, theme: dark ? 'dark' : 'neutral', securityLevel: 'loose', flowchart: { useMaxWidth: true } });
+</script>
+</body>
+</html>

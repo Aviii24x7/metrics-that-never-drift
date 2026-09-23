@@ -1,0 +1,27 @@
+# Render Blueprint — deploy the API on the free tier.
+# In Render: New > Blueprint > pick this repo. Then set the secret env vars
+# (marked sync:false) in the dashboard. The DB is your existing Neon project.
+services:
+  - type: web
+    name: metrics-never-drift
+    runtime: node
+    plan: free
+    region: singapore # near the Neon ap-southeast-1 database
+    buildCommand: pnpm install --frozen-lockfile
+    # Migrations are idempotent; running them on each boot keeps the schema current.
+    startCommand: pnpm db:migrate && pnpm start
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: DATABASE_URL # your Neon POOLED connection string
+        sync: false
+      - key: STRIPE_SECRET_KEY # sk_test_...
+        sync: false
+      - key: RAZORPAY_KEY_ID # rzp_test_...
+        sync: false
+      - key: RAZORPAY_KEY_SECRET
+        sync: false
+      - key: DEFAULT_TZ
+        value: UTC
+      - key: LEGACY_CSV_PATH
+        value: ./data/legacy-erp.csv
